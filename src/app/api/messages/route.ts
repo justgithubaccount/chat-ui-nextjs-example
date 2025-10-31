@@ -3,17 +3,22 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { openai } from "@/lib/openai";
-import { OpenAIStream, StreamingTextResponse } from "ai";
 import { generateChatTitle } from "@/lib/utils";
 
 export async function POST(req: NextRequest) {
   try {
+    // Check if OPENAI_API_KEY is available at runtime
+    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "dummy-key-for-build") {
+      console.error("OPENAI_API_KEY is not configured");
+      return new Response("OpenAI API key is not configured", { status: 500 });
+    }
+
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return new Response("Unauthorized", { status: 401 });
     }
 
-    const { chatId, content, messageId } = await req.json();
+    const { chatId, content } = await req.json();
 
     // Verify chat belongs to user
     const chat = await prisma.chat.findUnique({
@@ -62,7 +67,7 @@ export async function POST(req: NextRequest) {
       },
     ];
 
-    // Create streaming response
+    // Create streaming response using OpenAI SDK directly
     const response = await openai.chat.completions.create({
       model: chat.model,
       messages,
@@ -71,30 +76,52 @@ export async function POST(req: NextRequest) {
       max_tokens: 2000,
     });
 
-    let fullContent = "";
+    // Create a TransformStream to handle the response
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        let assistantMessage = "";
 
-    // Convert to ReadableStream with callback
-    const stream = OpenAIStream(response, {
-      async onCompletion(completion) {
-        fullContent = completion;
-        // Save assistant message
-        await prisma.message.create({
-          data: {
-            chatId,
-            role: "assistant",
-            content: completion,
-          },
-        });
+        try {
+          for await (const chunk of response) {
+            const text = chunk.choices[0]?.delta?.content || "";
+            if (text) {
+              assistantMessage += text;
+              controller.enqueue(encoder.encode(text));
+            }
+          }
 
-        // Update chat timestamp
-        await prisma.chat.update({
-          where: { id: chatId },
-          data: { updatedAt: new Date() },
-        });
+          // Save assistant message after completion
+          if (assistantMessage) {
+            await prisma.message.create({
+              data: {
+                chatId,
+                role: "assistant",
+                content: assistantMessage,
+              },
+            });
+
+            // Update chat timestamp
+            await prisma.chat.update({
+              where: { id: chatId },
+              data: { updatedAt: new Date() },
+            });
+          }
+        } catch (error) {
+          controller.error(error);
+        } finally {
+          controller.close();
+        }
       },
     });
 
-    return new StreamingTextResponse(stream);
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
+    });
   } catch (error) {
     console.error("Error in chat API:", error);
     return new Response("Internal Server Error", { status: 500 });

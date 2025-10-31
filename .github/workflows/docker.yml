@@ -59,6 +59,7 @@ jobs:
         cache-to: type=gha,mode=max
         build-args: |
           BUILDKIT_INLINE_CACHE=1
+          OPENAI_API_KEY=dummy-key-for-build
 
     - name: Generate SBOM
       uses: anchore/sbom-action@v0

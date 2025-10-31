@@ -18,8 +18,10 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
       remarkPlugins={[remarkGfm, remarkMath]}
       rehypePlugins={[rehypeKatex, rehypeHighlight]}
       components={{
-        code({ node, inline, className, children, ...props }) {
-          return inline ? (
+        code({ node, className, children, ...props }: any) {
+          const match = /language-(\w+)/.exec(className || '');
+          const isInline = !match;
+          return isInline ? (
             <code
               className="px-1 py-0.5 bg-muted rounded text-sm font-mono"
               {...props}
