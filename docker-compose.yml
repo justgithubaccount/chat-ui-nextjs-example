@@ -9,6 +9,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-chatdb}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - traefik
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U chatuser -d chatdb"]
       interval: 10s
@@ -59,9 +61,16 @@ services:
       NODE_ENV: production
     volumes:
       - uploads_data:/app/public/uploads
+    networks:
+      - traefik
 
 volumes:
   postgres_data:
     driver: local
   uploads_data:
     driver: local
+
+networks:
+  traefik:
+    external: true
+    name: traefik
