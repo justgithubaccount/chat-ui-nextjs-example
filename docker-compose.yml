@@ -9,10 +9,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-chatdb}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    networks:
-      - chat-network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U chatuser -d chatdb"]
       interval: 10s
@@ -28,9 +24,29 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    labels:
+      - traefik.enable=true
+      # Router configuration
+      - traefik.http.routers.nextjs.rule=Host(`${SUBDOMAIN}.${DOMAIN_NAME}`)
+      - traefik.http.routers.nextjs.tls=true
+      - traefik.http.routers.nextjs.entrypoints=web,websecure
+      - traefik.http.routers.nextjs.tls.certresolver=mytlschallenge
+      # Service configuration
+      - traefik.http.services.nextjs.loadbalancer.server.port=3000
+      # Headers middleware
+      - traefik.http.middlewares.nextjs.headers.SSLRedirect=true
+      - traefik.http.middlewares.nextjs.headers.STSSeconds=315360000
+      - traefik.http.middlewares.nextjs.headers.browserXSSFilter=true
+      - traefik.http.middlewares.nextjs.headers.contentTypeNosniff=true
+      - traefik.http.middlewares.nextjs.headers.forceSTSHeader=true
+      - traefik.http.middlewares.nextjs.headers.SSLHost=${DOMAIN_NAME}
+      - traefik.http.middlewares.nextjs.headers.STSIncludeSubdomains=true
+      - traefik.http.middlewares.nextjs.headers.STSPreload=true
+      # Apply middleware
+      - traefik.http.routers.nextjs.middlewares=nextjs@docker
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-chatuser}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-chatdb}
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_URL: https://${SUBDOMAIN}.${DOMAIN_NAME}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       GITHUB_ID: ${GITHUB_ID}
       GITHUB_SECRET: ${GITHUB_SECRET}
@@ -43,17 +59,9 @@ services:
       NODE_ENV: production
     volumes:
       - uploads_data:/app/public/uploads
-    ports:
-      - "3000:3000"
-    networks:
-      - chat-network
 
 volumes:
   postgres_data:
     driver: local
   uploads_data:
     driver: local
-
-networks:
-  chat-network:
-    driver: bridge
