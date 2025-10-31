@@ -115,7 +115,7 @@ GOOGLE_CLIENT_SECRET=your-google-client-secret
 
 ```bash
 # Start PostgreSQL in Docker
-docker-compose up -d postgres
+docker compose up -d postgres
 
 # Run database migrations
 npm run db:migrate
