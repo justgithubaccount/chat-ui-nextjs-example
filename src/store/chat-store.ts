@@ -8,6 +8,9 @@ interface ChatStore {
   isLoading: boolean;
   isSidebarOpen: boolean;
 
+  // Voice mode toggle (UI state only)
+  voiceMode: boolean;
+
   // Actions
   setChats: (chats: Chat[]) => void;
   addChat: (chat: Chat) => void;
@@ -19,6 +22,9 @@ interface ChatStore {
   setLoading: (isLoading: boolean) => void;
   toggleSidebar: () => void;
   setSidebarOpen: (isOpen: boolean) => void;
+
+  // Voice UI toggle only
+  setVoiceMode: (enabled: boolean) => void;
 }
 
 export const useChatStore = create<ChatStore>()(
@@ -28,6 +34,7 @@ export const useChatStore = create<ChatStore>()(
       currentChatId: null,
       isLoading: false,
       isSidebarOpen: true,
+      voiceMode: false,
 
       setChats: (chats) => set({ chats }),
 
@@ -84,6 +91,9 @@ export const useChatStore = create<ChatStore>()(
       toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
 
       setSidebarOpen: (isOpen) => set({ isSidebarOpen: isOpen }),
+
+      // Voice UI toggle
+      setVoiceMode: (enabled) => set({ voiceMode: enabled }),
     }),
     {
       name: "chat-storage",
@@ -91,6 +101,7 @@ export const useChatStore = create<ChatStore>()(
         chats: state.chats,
         currentChatId: state.currentChatId,
         isSidebarOpen: state.isSidebarOpen,
+        voiceMode: state.voiceMode,
       }),
     }
   )
