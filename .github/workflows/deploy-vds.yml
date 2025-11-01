@@ -1,0 +1,67 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            cd ${{ secrets.APP_PATH }}
+
+            echo "=== Starting deployment ===" && \
+            echo "Current time: $(date)" && \
+            echo "Current directory: $(pwd)" && \
+            echo "" && \
+
+            echo "=== Pulling new Docker image ===" && \
+            docker compose pull && \
+            echo "✓ Image pulled successfully" && \
+            echo "" && \
+
+            echo "=== Restarting containers ===" && \
+            docker compose up -d && \
+            echo "✓ Containers restarted" && \
+            echo "" && \
+
+            echo "=== Waiting for database to be ready ===" && \
+            sleep 5 && \
+            docker compose exec -T postgres pg_isready -U chatuser -d chatdb && \
+            echo "✓ Database is ready" && \
+            echo "" && \
+
+            echo "=== Running Prisma migrations ===" && \
+            docker compose exec -T nextjs npx prisma migrate deploy && \
+            echo "✓ Migrations completed" && \
+            echo "" && \
+
+            echo "=== Container status ===" && \
+            docker compose ps && \
+            echo "" && \
+
+            echo "=== Recent logs (last 50 lines) ===" && \
+            docker compose logs --tail=50 && \
+            echo "" && \
+
+            echo "=== Deployment completed successfully ===" && \
+            echo "Deployed at: $(date)"
